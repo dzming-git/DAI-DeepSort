@@ -11,7 +11,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
     def getResultByImageId(self, request, context):
         response_code = 200
         response_message = ''
-        results = []
+        results_dict = {}
         try:
             task_id = request.taskId
             image_id = request.imageId
@@ -35,7 +35,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
                 
                 time.sleep(0.01)
             
-            results = tracker.get_result_by_uid(image_id)
+            results_dict = tracker.get_result_by_uid(image_id)
         except Exception as e:
             response_code = 400
             response_message += traceback.format_exc()
@@ -43,14 +43,17 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
         response = target_tracking_pb2.GetResultByImageIdResponse()
         response.response.code = response_code
         response.response.message = response_message
-        for result in results:
+        for id in results_dict:
+            results = results_dict[id]
             result_response = target_tracking_pb2.Result()
-            x1, y1, x2, y2, id = result
             result_response.id = id
-            result_response.x1 = x1
-            result_response.y1 = y1
-            result_response.x2 = x2
-            result_response.y2 = y2
+            for result in results:
+                bbox = result_response.bboxs.add()
+                x1, y1, x2, y2 = result
+                bbox.x1 = x1
+                bbox.y1 = y1
+                bbox.x2 = x2
+                bbox.y2 = y2
             response.results.append(result_response)
         return response
     

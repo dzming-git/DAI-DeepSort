@@ -14,7 +14,7 @@ import queue
 import copy
 import threading
 import traceback
-from typing import Dict
+from typing import Dict, List
 
 import warnings
 warnings.filterwarnings('always')
@@ -75,7 +75,9 @@ class MyDeepSort(DeepSort):
     class ImgInfo:
         uid = 0
         image_shape = np.zeros((0, 0, 0))
-        results = []
+        results: Dict[int, List[float]] = {}
+        results_update: Dict[int, bool] = {}
+        # results = []
         is_used = False
         step = ADD_UID_COMPLETE
         lock = threading.Lock()
@@ -92,14 +94,13 @@ class MyDeepSort(DeepSort):
             metric, max_iou_distance=parse.MAX_IOU_DISTANCE, max_age=parse.MAX_AGE, n_init=parse.N_INIT)
         
         # 图像、结果缓存
+        self.max_tracking_length = 10
         self._max_cache = 100
         self._img_infos:Dict[int, MyDeepSort.ImgInfo] = dict()
         self._img_uid_fifo:queue.Queue[int] = queue.Queue(maxsize=self._max_cache)
 
         # 最新检测完成的uid
         self.latest_detection_completed_uid = 0
-        # 最新添加图片的uid
-        self.latest_add_uid = 0
 
     def check_uid_exist(self, uid) -> bool:
         return uid in self._img_infos
@@ -138,6 +139,7 @@ class MyDeepSort(DeepSort):
         self._img_infos[uid].image_shape = image.shape
         result = None
         self._img_infos[uid].step = DETECT_IMAGE_START
+        results = []
         if len(normalized_bboxes) != 0:
             xywh = []
             for normalized_bbox in normalized_bboxes:
@@ -153,21 +155,44 @@ class MyDeepSort(DeepSort):
             xywh = torch.Tensor(xywh)
             confss = torch.from_numpy(np.ones(shape=(len(normalized_bboxes))))
             results = super().update(xywh, confss, image)
-            self._img_infos[uid].results = []
-            for result in results:
-                self._img_infos[uid].results.append([
-                    float(result[0]) / image.shape[1],
-                    float(result[1]) / image.shape[1],
-                    float(result[2]) / image.shape[1],
-                    float(result[3]) / image.shape[1],
-                    result[4]
-                ])
         else:
             super().increment_ages()
+        
+        # 将全部id置为未更新
+        for id in self._img_infos[uid].results_update:
+            self._img_infos[uid].results_update[id] = False
+        # 更新id的result
+        for result in results:
+            id = result[4]
+            # 新的id
+            if id not in self._img_infos[uid].results_update:
+                self._img_infos[uid].results[id] = []
+            # 判断结果数量
+            if len(self._img_infos[uid].results[id]) > self.max_tracking_length:
+                self._img_infos[uid].results[id] = self._img_infos[uid].results[id][1:]
+            # 添加结果
+            self._img_infos[uid].results[id].append([
+                float(result[0]) / image.shape[1],
+                float(result[1]) / image.shape[0],
+                float(result[2]) / image.shape[1],
+                float(result[3]) / image.shape[0],
+            ])
+            # 更新id状态
+            self._img_infos[uid].results_update[id] = True
+        # 删除未更新的id
+        deleteId = []
+        for id in self._img_infos[uid].results_update:
+            update = self._img_infos[uid].results_update[id]
+            if not update:
+                deleteId.append(id)
+        for id in deleteId:
+            del self._img_infos[uid].results[id]
+            del self._img_infos[uid].results_update[id]
         self._img_infos[uid].step = DETECT_IMAGE_COMPLETE
+        self.latest_detection_completed_uid = uid
         return True
 
-    def get_result_by_uid(self, uid):
+    def get_result_by_uid(self, uid) -> Dict[int, List[float]]:
         if not self.check_uid_exist(uid):
             warnings.warn("该uid不存在", UserWarning)
             return None

@@ -43,6 +43,7 @@ class TaskInfo:
 
         self.weight: str = '/workspace/Deepsort/deep_sort/deep/checkpoint/ckpt.t7'
         self.device: str = ''
+        self.max_tracking_length: int = 10
         self.image_id_queue: Queue[int] = Queue()
         self.tracker: MyDeepSort = None
     
@@ -64,6 +65,8 @@ class TaskInfo:
             self.weight = f"/workspace/Deepsort/deep_sort/deep/checkpoint/{args['Weight']}"
         if 'TargetLabel' in args:
             self.target_label = args['TargetLabel']
+        if 'MaxTrackingLength' in args:
+            self.max_tracking_length = int(args['MaxTrackingLength'])
     
     def check(self) -> Tuple[bool, str]:
         try:
@@ -86,6 +89,7 @@ class TaskInfo:
             device=self.device,
             weights=self.weight
         )
+        self.tracker.max_tracking_length = self.max_tracking_length
         self.target_detection_client.set_track_target_label(self.target_label)
         self.stop = False
         # _thread.start_new_thread(self.progress, ())
