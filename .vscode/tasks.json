@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks":[
+        {
+            "label": "proto generate",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "./proto_generate.sh"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+    ]
+}
