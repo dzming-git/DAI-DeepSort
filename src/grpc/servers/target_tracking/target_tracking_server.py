@@ -47,6 +47,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
             results = results_dict[id]
             result_response = target_tracking_pb2.Result()
             result_response.id = id
+            result_response.label = task.target_label
             for result in results:
                 bbox = result_response.bboxs.add()
                 x1, y1, x2, y2 = result
