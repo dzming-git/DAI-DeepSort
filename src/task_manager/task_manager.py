@@ -3,6 +3,7 @@ from typing import Dict, Tuple, List
 from queue import Queue
 from src.grpc.clients.image_harmony.image_harmony_client import ImageHarmonyClient
 from src.grpc.clients.target_detection.target_detection_client import TargetDetectionClient
+from src.config.config import Config
 import _thread
 from src.wrapper.deepsort import MyDeepSort
 import traceback
@@ -30,6 +31,8 @@ def calculate_scaled_size(width: int, height: int) -> Tuple[int, int]:
 
 class TaskInfo:
     def __init__(self, taskId: int):
+        config = Config()
+        
         self.id: int = taskId
         self.stop: bool = True
         
@@ -41,7 +44,8 @@ class TaskInfo:
         self.target_detection_client: TargetDetectionClient = None
         self.target_label: str = 'person'  # 默认跟踪person
 
-        self.weight: str = '/workspace/Deepsort/deep_sort/deep/checkpoint/ckpt.t7'
+        self.weights_folder = config.weights_folder
+        self.weight: str = 'ckpt.t7'
         self.device: str = ''
         self.max_tracking_length: int = 10
         self.image_id_queue: Queue[int] = Queue()
@@ -62,7 +66,7 @@ class TaskInfo:
         if 'Device' in args:
             self.device = args['Device']
         if 'Weight' in args:
-            self.weight = f"/workspace/Deepsort/deep_sort/deep/checkpoint/{args['Weight']}"
+            self.weight = args['Weight']
         if 'TargetLabel' in args:
             self.target_label = args['TargetLabel']
         if 'MaxTrackingLength' in args:
@@ -87,7 +91,7 @@ class TaskInfo:
         self.image_harmony_client.set_loader_args_hash(self.loader_args_hash)
         self.tracker = MyDeepSort(
             device=self.device,
-            weights=self.weight
+            weights=f'{self.weights_folder}/{self.weight}'
         )
         self.tracker.max_tracking_length = self.max_tracking_length
         self.target_detection_client.set_track_target_label(self.target_label)

@@ -4,6 +4,7 @@ service:
   tags: 
     - interface:gRPC
     - algorithm:DeepSort
+  weights_folder: ./weights
 
 consul:
   ip: 10.0.0.2
