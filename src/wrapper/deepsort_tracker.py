@@ -71,7 +71,7 @@ class MyExtractor(Extractor):
         ])
 
 
-class MyDeepSort(DeepSort):
+class DeepSortTracker(DeepSort):
     class ImgInfo:
         uid = 0
         image_shape = np.zeros((0, 0, 0))
@@ -96,7 +96,7 @@ class MyDeepSort(DeepSort):
         # 图像、结果缓存
         self.max_tracking_length = 10
         self._max_cache = 100
-        self._img_infos:Dict[int, MyDeepSort.ImgInfo] = dict()
+        self._img_infos:Dict[int, DeepSortTracker.ImgInfo] = dict()
         self._img_uid_fifo:queue.Queue[int] = queue.Queue(maxsize=self._max_cache)
 
         # 最新检测完成的uid
@@ -123,7 +123,7 @@ class MyDeepSort(DeepSort):
             with self._img_infos[uid_rm].lock:
                 self._img_infos.pop(uid_rm)
         self._img_uid_fifo.put(uid)
-        self._img_infos[uid] = MyDeepSort.ImgInfo()
+        self._img_infos[uid] = DeepSortTracker.ImgInfo()
         self._img_infos[uid].step = ADD_UID_COMPLETE
         return True
     

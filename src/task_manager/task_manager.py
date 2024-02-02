@@ -5,7 +5,7 @@ from src.grpc.clients.image_harmony.image_harmony_client import ImageHarmonyClie
 from src.grpc.clients.target_detection.target_detection_client import TargetDetectionClient
 from src.config.config import Config
 import _thread
-from src.wrapper.deepsort import MyDeepSort
+from wrapper.deepsort_tracker import DeepSortTracker
 import traceback
 
 def calculate_scaled_size(width: int, height: int) -> Tuple[int, int]:
@@ -49,7 +49,7 @@ class TaskInfo:
         self.device: str = ''
         self.max_tracking_length: int = 10
         self.image_id_queue: Queue[int] = Queue()
-        self.tracker: MyDeepSort = None
+        self.tracker: DeepSortTracker = None
     
     def set_pre_service(self, pre_service_name: str, pre_service_ip: str, pre_service_port: str, args: Dict[str, str]):
         if 'image harmony' == pre_service_name:
@@ -89,7 +89,7 @@ class TaskInfo:
     
     def start(self):
         self.image_harmony_client.set_loader_args_hash(self.loader_args_hash)
-        self.tracker = MyDeepSort(
+        self.tracker = DeepSortTracker(
             device=self.device,
             weights=f'{self.weights_folder}/{self.weight}'
         )

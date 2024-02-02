@@ -1,4 +1,3 @@
-from src.wrapper.deepsort import MyDeepSort
 from src.task_manager.task_manager import TaskManager
 from src.config.config import Config
 from src.grpc.servers.grpc_server_builder import GRPCServerBuilder
