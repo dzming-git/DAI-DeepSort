@@ -5,7 +5,7 @@ from src.grpc.clients.image_harmony.image_harmony_client import ImageHarmonyClie
 from src.grpc.clients.target_detection.target_detection_client import TargetDetectionClient
 from src.config.config import Config
 import _thread
-from wrapper.deepsort_tracker import DeepSortTracker
+from src.wrapper.deepsort_tracker import DeepSortTracker
 import traceback
 
 def calculate_scaled_size(width: int, height: int) -> Tuple[int, int]:
