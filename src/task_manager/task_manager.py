@@ -1,12 +1,12 @@
 from src.utils import singleton
 from typing import Dict, Tuple, List
-from queue import Queue
+import queue
 from src.grpc.clients.image_harmony.image_harmony_client import ImageHarmonyClient
 from src.grpc.clients.target_detection.target_detection_client import TargetDetectionClient
 from src.config.config import Config
-import _thread
 from src.wrapper.deepsort_tracker import DeepSortTracker
 import traceback
+import threading
 
 def calculate_scaled_size(width: int, height: int) -> Tuple[int, int]:
     max_width = 640
@@ -30,11 +30,10 @@ def calculate_scaled_size(width: int, height: int) -> Tuple[int, int]:
     return scaled_width, scaled_height
 
 class TaskInfo:
-    def __init__(self, taskId: int):
+    def __init__(self, task_id: int):
         config = Config()
         
-        self.id: int = taskId
-        self.stop: bool = True
+        self.id: int = task_id
         
         self.image_harmony_address: List[str, str] = []
         self.image_harmony_client: ImageHarmonyClient = None
@@ -48,8 +47,10 @@ class TaskInfo:
         self.weight: str = 'ckpt.t7'
         self.device: str = ''
         self.max_tracking_length: int = 10
-        self.image_id_queue: Queue[int] = Queue()
+        self.image_id_queue: queue.Queue[int] = queue.Queue()
         self.tracker: DeepSortTracker = None
+        self.stop_event = threading.Event()
+        self.track_thread = None  # 用于跟踪线程的引用
     
     def set_pre_service(self, pre_service_name: str, pre_service_ip: str, pre_service_port: str, args: Dict[str, str]):
         if 'image harmony' == pre_service_name:
@@ -80,7 +81,6 @@ class TaskInfo:
             assert self.weight,                  'Error: weight not set.'
             assert self.device,                  'Error: device not set.'
             assert self.target_label,            'Error: target_label not set.'
-            # assert self.tracker,                 'Error: tracker not set.'
         except Exception as e:
             error_info = traceback.format_exc()
             print(error_info)
@@ -88,48 +88,63 @@ class TaskInfo:
         return True, 'OK'
     
     def start(self):
-        self.image_harmony_client.set_loader_args_hash(self.loader_args_hash)
+        self.image_harmony_client.connect_image_loader(self.loader_args_hash)
         self.tracker = DeepSortTracker(
             device=self.device,
             weights=f'{self.weights_folder}/{self.weight}'
         )
         self.tracker.max_tracking_length = self.max_tracking_length
         self.target_detection_client.set_track_target_label(self.target_label)
-        self.stop = False
-        # _thread.start_new_thread(self.progress, ())
-        # TODO 临时版本
-        _thread.start_new_thread(self.track_by_image_id, ())
+        self.stop_event.clear()  # 确保开始时事件是清除状态
+        self.track_thread = threading.Thread(target=self.track_by_image_id)
+        self.track_thread.start()
     
     def track_by_image_id(self):
         assert self.tracker, 'tracker is not set\n'
         assert self.image_harmony_client, 'image harmony client is not set\n'
-        while not self.stop:
-            image_id_in_queue = self.image_id_queue.get()
+        while not self.stop_event.is_set():  # 使用事件来检查停止条件
+            # image_id_in_queue = self.image_id_queue.get()
+            try:
+            # 尝试从队列中获取image_id，设置超时时间为1秒
+                image_id_in_queue = self.image_id_queue.get(timeout=1)
+            except queue.Empty:
+                # 如果在超时时间内没有获取到新的image_id，则继续循环，此时可以检查停止事件
+                continue
             width, height = self.image_harmony_client.get_image_size_by_image_id(image_id_in_queue)
             if 0 == width or 0 == height:
                 continue
             
             new_width, new_height = calculate_scaled_size(width, height)
+            if self.stop_event.is_set():  # 在可能的长时间操作之前再次检查
+                break
             image_id, image = self.image_harmony_client.get_image_by_image_id(image_id_in_queue, new_width, new_height)
             if 0 == image_id:
                 continue
+            if self.stop_event.is_set():  # 在可能的长时间操作之前再次检查
+                break
             bboxs = self.target_detection_client.get_result_by_image_id(image_id)
             if not self.tracker.add_image_and_bboxes(image_id, image, bboxs):
                 continue
             result = self.tracker.get_result_by_uid(image_id)
             print(result)
+    
+    def stop(self):
+        self.stop_event.set()  # 设置事件，通知线程停止
+        if self.track_thread:
+            self.track_thread.join()  # 等待线程结束
+        self.image_harmony_client.disconnect_image_loader()
+        if self.tracker:
+            del self.tracker  # 释放资源
+        self.tracker = None
                                                                                                                                            
 @singleton
 class TaskManager:
     def __init__(self):
-        self.tasks_queue: Queue[TaskInfo] = Queue(maxsize=20)
-        self.incomplete_tasks: Dict[int, TaskInfo] = {}
         self.tasks: Dict[int, TaskInfo] = {}
-
-    def listening(self):
-        def wait_for_task():
-            while True:
-                task = self.tasks_queue.get()
-                task.start()
-
-        _thread.start_new_thread(wait_for_task, ())
+        self.__lock = threading.Lock()
+    
+    def stop_task(self, task_id: int):
+        with self.__lock:
+            if task_id in self.tasks:
+                self.tasks[task_id].stop()
+                del self.tasks[task_id]

@@ -39,9 +39,6 @@ def gRPC_server_start():
 
 if __name__ == '__main__':
     connect_consul()
-
-    task_manager = TaskManager()
-    task_manager.listening()
     
     gRPC_server_start()
 
