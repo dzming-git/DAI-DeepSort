@@ -1,7 +1,6 @@
 from src.utils import singleton
 import yaml
-from typing import List, Dict
-import os
+from typing import List
 
 CONFIG_PATH = './.config.yml'
 

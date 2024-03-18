@@ -1,9 +1,5 @@
-from concurrent import futures
-import time
-import grpc
 import traceback
 from generated.protos.service_coordinator import service_coordinator_pb2, service_coordinator_pb2_grpc
-from typing import Dict
 from src.task_manager.task_manager import TaskManager, TaskInfo
 
 VALID_PRE_SERVICE = ['image harmony', 'target detection']

@@ -1,8 +1,6 @@
 from generated.protos.target_detection import target_detection_pb2, target_detection_pb2_grpc
 import grpc
-import cv2
-from typing import Dict, Tuple, List
-import numpy as np
+from typing import List
 
 class TargetDetectionClient:
     def __init__(self, ip:str, port: str, taskId: int):
