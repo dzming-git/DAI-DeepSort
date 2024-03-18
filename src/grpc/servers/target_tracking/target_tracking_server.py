@@ -16,6 +16,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
             task_id = request.taskId
             image_id = request.imageId
             wait = request.wait
+            only_the_latest = request.onlyTheLatest
             assert task_id in task_manager.tasks, 'ERROR: The task ID does not exist.\n'
             task = task_manager.tasks[task_id]
             tracker = task.tracker
@@ -48,13 +49,21 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
             result_response = target_tracking_pb2.Result()
             result_response.id = id
             result_response.label = task.target_label
-            for result in results:
+            if only_the_latest and results:
                 bbox = result_response.bboxs.add()
-                x1, y1, x2, y2 = result
+                x1, y1, x2, y2 = results[-1]
                 bbox.x1 = x1
                 bbox.y1 = y1
                 bbox.x2 = x2
                 bbox.y2 = y2
+            else:
+                for result in results:
+                    bbox = result_response.bboxs.add()
+                    x1, y1, x2, y2 = result
+                    bbox.x1 = x1
+                    bbox.y1 = y1
+                    bbox.x2 = x2
+                    bbox.y2 = y2
             response.results.append(result_response)
         return response
     

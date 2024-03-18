@@ -88,16 +88,22 @@ class TaskInfo:
         return True, 'OK'
     
     def start(self):
-        self.image_harmony_client.connect_image_loader(self.loader_args_hash)
-        self.tracker = DeepSortTracker(
-            device=self.device,
-            weights=f'{self.weights_folder}/{self.weight}'
-        )
-        self.tracker.max_tracking_length = self.max_tracking_length
-        self.target_detection_client.set_track_target_label(self.target_label)
-        self.stop_event.clear()  # 确保开始时事件是清除状态
-        self.track_thread = threading.Thread(target=self.track_by_image_id)
-        self.track_thread.start()
+        try:
+            self.image_harmony_client.connect_image_loader(self.loader_args_hash)
+            self.tracker = DeepSortTracker(
+                device=self.device,
+                weights=f'{self.weights_folder}/{self.weight}'
+            )
+            self.tracker.max_tracking_length = self.max_tracking_length
+            self.target_detection_client.set_track_target_label(self.target_label)
+            self.stop_event.clear()  # 确保开始时事件是清除状态
+            self.track_thread = threading.Thread(target=self.track_by_image_id)
+            self.track_thread.start()
+        except Exception as e:
+            error_info = traceback.format_exc()
+            print(error_info)
+            return False, error_info
+        return True, 'OK'
     
     def track_by_image_id(self):
         assert self.tracker, 'tracker is not set\n'

@@ -67,8 +67,8 @@ class ServiceCoordinatorServer(service_coordinator_pb2_grpc.CommunicateServicer)
             task_manager = TaskManager()
             task_id = request.taskId
             assert task_id in task_manager.tasks, 'ERROR: The task ID does not exist.\n'
-            task_manager.tasks[task_id].start()
-        
+            task_start_ok, msg = task_manager.tasks[task_id].start()
+            assert task_start_ok, msg
         except Exception as e:
             response.response.code = 400
             response.response.message = traceback.format_exc()
