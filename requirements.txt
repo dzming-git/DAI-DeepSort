@@ -12,5 +12,6 @@ protobuf==4.21.6
 pyyaml
 
 # deepsort base
-scipy
-numpy==1.23.5
+opencv-python==4.2.0.34
+scipy==1.4.1
+numpy==1.18.2
