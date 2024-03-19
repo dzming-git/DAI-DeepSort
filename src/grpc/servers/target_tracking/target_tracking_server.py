@@ -21,7 +21,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
             task = task_manager.tasks[task_id]
             tracker = task.tracker
             # TODO 初步使用同步模式
-            image_id_exist = tracker.check_uid_exist(image_id)
+            image_id_exist = tracker.check_image_id_exist(image_id)
             if not image_id_exist and wait:
                 task_manager.tasks[task_id].image_id_queue.put(image_id)
             # 设置超时时间为 1 秒
@@ -36,7 +36,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
                 
                 time.sleep(0.01)
             
-            results_dict = tracker.get_result_by_uid(image_id)
+            results_dict = tracker.get_result_by_image_id(image_id)
         except Exception as e:
             response_code = 400
             response_message += traceback.format_exc()
