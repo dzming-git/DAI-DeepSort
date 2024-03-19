@@ -4,7 +4,7 @@ import queue
 from src.grpc.clients.image_harmony.image_harmony_client import ImageHarmonyClient
 from src.grpc.clients.target_detection.target_detection_client import TargetDetectionClient
 from src.config.config import Config
-from src.wrapper.deepsort_tracker import DeepSortTracker
+from src.wrapper.deepsort_tracker import DeepSort
 import traceback
 import threading
 
@@ -48,7 +48,7 @@ class TaskInfo:
         self.device: str = ''
         self.max_tracking_length: int = 10
         self.image_id_queue: queue.Queue[int] = queue.Queue()
-        self.tracker: DeepSortTracker = None
+        self.tracker: DeepSort = None
         self.stop_event = threading.Event()
         self.track_thread = None  # 用于跟踪线程的引用
     
@@ -90,11 +90,11 @@ class TaskInfo:
     def start(self):
         try:
             self.image_harmony_client.connect_image_loader(self.loader_args_hash)
-            self.tracker = DeepSortTracker(
-                device=self.device,
-                weights=f'{self.weights_folder}/{self.weight}'
-            )
-            self.tracker.max_tracking_length = self.max_tracking_length
+            builder = DeepSort.DeepSortBuilder()
+            builder.device_str = self.device
+            builder.weights = f'{self.weights_folder}/{self.weight}'
+            builder.max_tracking_length = self.max_tracking_length
+            self.tracker = builder.build()
             self.target_detection_client.set_track_target_label(self.target_label)
             self.stop_event.clear()  # 确保开始时事件是清除状态
             self.track_thread = threading.Thread(target=self.track_by_image_id)

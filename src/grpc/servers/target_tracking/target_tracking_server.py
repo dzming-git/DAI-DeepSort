@@ -29,7 +29,7 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
             start_time = time.time()
 
             # 等待检测完成
-            while tracker.get_statue(image_id) != 0:
+            while tracker.get_status(image_id) != 0:
                 # 检查是否超过了超时时间
                 if time.time() - start_time > timeout:
                     raise TimeoutError("等待超时")
