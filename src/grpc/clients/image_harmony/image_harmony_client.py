@@ -13,6 +13,7 @@ class ImageHarmonyClient:
         self.connect_id: int = 0
     
     def connect_image_loader(self, loader_args_hash: int):
+        print(f'connect image loader {loader_args_hash}')
         request = image_harmony_pb2.RegisterImageTransServiceRequest()
         request.loaderArgsHash = loader_args_hash
         request.isUnique = False
@@ -21,6 +22,7 @@ class ImageHarmonyClient:
         print(f'{response.response.code}: {response.response.message}')
 
     def disconnect_image_loader(self):
+        print(f'disconnect image loader')
         if 0 != self.connect_id:
             request = image_harmony_pb2.UnregisterImageTransServiceRequest()
             request.connectId = self.connect_id
