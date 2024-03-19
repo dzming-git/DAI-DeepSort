@@ -1,10 +1,8 @@
-from Deepsort.deep_sort import DeepSort
-from Deepsort.deep_sort.deep.feature_extractor import Extractor
-from Deepsort.deep_sort.sort.nn_matching import NearestNeighborDistanceMetric
-from Deepsort.deep_sort.sort.tracker import Tracker
-from Deepsort.deep_sort.deep.model import Net
-import torchvision.transforms as transforms
-import logging
+from deep_sort.deep_sort.sort.nn_matching import NearestNeighborDistanceMetric
+from deep_sort.deep_sort.sort.preprocessing import non_max_suppression
+from deep_sort.deep_sort.sort.detection import Detection
+from deep_sort.deep_sort.sort.tracker import Tracker
+from src.wrapper.utils.feature_exactor import FeatureExtractor
 import torch
 import numpy as np
 import queue
@@ -48,25 +46,7 @@ def xyxy_to_xywh(xyxy):
     h = bbox_h
     return x_c, y_c, w, h
 
-
-class MyExtractor(Extractor):
-    def __init__(self, model_path, device):
-        self.device = device
-        self.net = Net(reid=True)
-        state_dict = torch.load(model_path, map_location=torch.device(self.device))[
-            'net_dict']
-        self.net.load_state_dict(state_dict)
-        logger = logging.getLogger("root.tracker")
-        logger.info("Loading weights from {}... Done!".format(model_path))
-        self.net.to(self.device)
-        self.size = (64, 128)
-        self.norm = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        ])
-
-
-class DeepSortTracker(DeepSort):
+class DeepSortTracker(object):
     class ImgInfo:
         image_id = 0
         image_shape = np.zeros((0, 0, 0))
@@ -80,7 +60,7 @@ class DeepSortTracker(DeepSort):
         parse = Parse()
         self.min_confidence = parse.MIN_CONFIDENCE
         self.nms_max_overlap = parse.NMS_MAX_OVERLAP
-        self.extractor = MyExtractor(weights, device)
+        self.extractor = FeatureExtractor(weights, device)
         max_cosine_distance = parse.MAX_DIST
         metric = NearestNeighborDistanceMetric(
             "cosine", max_cosine_distance, Parse.NN_BUDGET)
@@ -137,23 +117,20 @@ class DeepSortTracker(DeepSort):
         result = None
         self._img_infos[image_id].step = DETECT_IMAGE_START
         results = []
-        if len(normalized_bboxes) != 0:
-            xywh = []
-            for normalized_bbox in normalized_bboxes:
-                bbox = [
-                    normalized_bbox[0] * image.shape[1],  # 左上角 x 坐标
-                    normalized_bbox[1] * image.shape[0],  # 左上角 y 坐标
-                    normalized_bbox[2] * image.shape[1],  # 右下角 x 坐标
-                    normalized_bbox[3] * image.shape[0]   # 右下角 y 坐标
-                ]
-                x_c, y_c, bbox_w, bbox_h = xyxy_to_xywh(bbox)
-                xywh_obj = [x_c, y_c, bbox_w, bbox_h]
-                xywh.append(xywh_obj)
-            xywh = torch.Tensor(xywh)
-            confss = torch.from_numpy(np.ones(shape=(len(normalized_bboxes))))
-            results = super().update(xywh, confss, image)
-        else:
-            super().increment_ages()
+        xywh = []
+        for normalized_bbox in normalized_bboxes:
+            bbox = [
+                normalized_bbox[0] * image.shape[1],  # 左上角 x 坐标
+                normalized_bbox[1] * image.shape[0],  # 左上角 y 坐标
+                normalized_bbox[2] * image.shape[1],  # 右下角 x 坐标
+                normalized_bbox[3] * image.shape[0]   # 右下角 y 坐标
+            ]
+            x_c, y_c, bbox_w, bbox_h = xyxy_to_xywh(bbox)
+            xywh_obj = [x_c, y_c, bbox_w, bbox_h]
+            xywh.append(xywh_obj)
+        xywh = torch.Tensor(xywh)
+        confss = torch.from_numpy(np.ones(shape=(len(normalized_bboxes))))
+        results = self.update(xywh, confss, image)
         
         # 将全部id置为未更新
         for id in self._img_infos[image_id].results_update:
@@ -201,3 +178,53 @@ class DeepSortTracker(DeepSort):
             if self.print_result and len(self._img_infos[image_id].results):
                 print(self._img_infos[image_id].results)
         return self._img_infos[image_id].results
+
+    def update(self, bboxes_xywh, confidences, ori_img):
+        self.height, self.width = ori_img.shape[:2]
+        # generate detections
+        im_crops = []
+        features = np.array([])
+        for bbox_xywh in bboxes_xywh:
+            x, y, w, h = bbox_xywh
+            x1 = max(int(x - w / 2), 0)
+            x2 = min(int(x + w / 2), self.width - 1)
+            y1 = max(int(y - h / 2), 0)
+            y2 = min(int(y + h / 2), self.height - 1)
+            im = ori_img[y1:y2, x1:x2]
+            im_crops.append(im)
+        if im_crops:
+            features = self.extractor(im_crops)
+        if isinstance(bboxes_xywh, np.ndarray):
+            bboxes_tlwh = bboxes_xywh.copy()
+        elif isinstance(bboxes_xywh, torch.Tensor):
+            bboxes_tlwh = bboxes_xywh.clone()
+        bboxes_tlwh[:, 0] = bboxes_xywh[:, 0] - bboxes_xywh[:, 2] / 2.
+        bboxes_tlwh[:, 1] = bboxes_xywh[:, 1] - bboxes_xywh[:, 3] / 2.
+        detections = [Detection(bboxes_tlwh[i], conf, features[i]) for i,conf in enumerate(confidences) if conf>self.min_confidence]
+
+        # run on non-maximum supression
+        boxes = np.array([d.tlwh for d in detections])
+        scores = np.array([d.confidence for d in detections])
+        indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
+        detections = [detections[i] for i in indices]
+
+        # update tracker
+        self.tracker.predict()
+        self.tracker.update(detections)
+
+        # output bbox identities
+        outputs = []
+        for track in self.tracker.tracks:
+            if not track.is_confirmed() or track.time_since_update > 1:
+                continue
+            bboxes_tlwh = track.to_tlwh()
+            x, y, w, h = bboxes_tlwh
+            x1 = max(int(x), 0)
+            x2 = min(int(x+w), self.width - 1)
+            y1 = max(int(y), 0)
+            y2 = min(int(y+h), self.height - 1)
+            track_id = track.track_id
+            outputs.append(np.array([x1,y1,x2,y2,track_id], dtype=np.int))
+        if len(outputs) > 0:
+            outputs = np.stack(outputs,axis=0)
+        return outputs
