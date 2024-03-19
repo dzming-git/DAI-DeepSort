@@ -5,15 +5,10 @@ from Deepsort.deep_sort.sort.tracker import Tracker
 from Deepsort.deep_sort.deep.model import Net
 import torchvision.transforms as transforms
 import logging
-
-
 import torch
 import numpy as np
 import queue
-
-import copy
 import threading
-import traceback
 from typing import Dict, List
 
 import warnings
@@ -101,6 +96,9 @@ class DeepSortTracker(DeepSort):
 
         # 最新检测完成的uid
         self.latest_detection_completed_uid = 0
+        
+        # 打印结果
+        self.print_result = False
 
     def check_uid_exist(self, uid) -> bool:
         return uid in self._img_infos
@@ -201,6 +199,6 @@ class DeepSortTracker(DeepSort):
             return False
         with self._img_infos[uid].lock:
             self._img_infos[uid].is_used = True
-            if len(self._img_infos[uid].results):
+            if self.print_result and len(self._img_infos[uid].results):
                 print(self._img_infos[uid].results)
         return self._img_infos[uid].results

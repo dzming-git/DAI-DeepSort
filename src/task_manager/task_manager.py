@@ -131,8 +131,8 @@ class TaskInfo:
             bboxs = self.target_detection_client.get_result_by_image_id(image_id)
             if not self.tracker.add_image_and_bboxes(image_id, image, bboxs):
                 continue
-            result = self.tracker.get_result_by_uid(image_id)
-            print(result)
+            # result = self.tracker.get_result_by_uid(image_id)
+            # print(result)
     
     def stop(self):
         self.stop_event.set()  # 设置事件，通知线程停止
