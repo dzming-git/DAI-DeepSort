@@ -10,3 +10,6 @@
 [submodule "deep_sort"]
 	path = deep_sort
 	url = https://github.com/ZQPei/deep_sort_pytorch.git
+[submodule "src/grpc/clients"]
+	path = src/grpc/clients
+	url = https://github.com/dzming-git/DAI-grpc-clients-python.git

@@ -95,7 +95,9 @@ class TaskInfo:
             builder.weights = f'{self.weights_folder}/{self.weight}'
             builder.max_tracking_length = self.max_tracking_length
             self.tracker = builder.build()
-            self.target_detection_client.set_track_target_label(self.target_label)
+            self.target_detection_client.filter.clear()
+            target_label_id = self.target_detection_client.query_label_id(self.target_label)
+            self.target_detection_client.filter.add(target_label_id)
             self.stop_event.clear()  # 确保开始时事件是清除状态
             self.track_thread = threading.Thread(target=self.track_by_image_id)
             self.track_thread.start()
@@ -128,7 +130,17 @@ class TaskInfo:
                 continue
             if self.stop_event.is_set():  # 在可能的长时间操作之前再次检查
                 break
-            bboxs = self.target_detection_client.get_result_by_image_id(image_id)
+            results = self.target_detection_client.get_result_by_image_id(image_id)
+            bboxs: List[List[float]] = []
+            for result in results:
+                bboxs.append(
+                    [
+                        result.x1,
+                        result.y1,
+                        result.x2,
+                        result.y2
+                    ]
+                )
             if not self.tracker.add_image_and_bboxes(image_id, image, bboxs):
                 continue
             # result = self.tracker.get_result_by_uid(image_id)
