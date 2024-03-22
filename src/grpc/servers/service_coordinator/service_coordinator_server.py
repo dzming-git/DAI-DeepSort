@@ -13,9 +13,13 @@ class ServiceCoordinatorServer(service_coordinator_pb2_grpc.CommunicateServicer)
         try:
             task_manager = TaskManager()
             task_id = request.taskId
-            if task_id not in task_manager.tasks:
-                task_manager.tasks[task_id] = TaskInfo(request.taskId)
-            assert request.preServiceName in VALID_PRE_SERVICE, 'invalid pre service\n'
+            if task_id in task_manager.tasks:
+                raise ValueError(f'Task ID {task_id} is already initialized.')
+            task_manager.tasks[task_id] = TaskInfo(request.taskId)
+
+            # 检查preServiceName是否在VALID_PRE_SERVICE列表中
+            if request.preServiceName not in VALID_PRE_SERVICE:
+                raise ValueError(f'Invalid pre service: {request.preServiceName}')
             args = {}
             for arg in request.args:
                 args[arg.key] = arg.value
@@ -66,7 +70,8 @@ class ServiceCoordinatorServer(service_coordinator_pb2_grpc.CommunicateServicer)
         try:
             task_manager = TaskManager()
             task_id = request.taskId
-            assert task_id in task_manager.tasks, 'ERROR: The task ID does not exist.\n'
+            if task_id not in task_manager.tasks:
+                raise Exception('ERROR: The task ID does not exist.')
             task_manager.tasks[task_id].start()
         except Exception as e:
             response.response.code = 400
