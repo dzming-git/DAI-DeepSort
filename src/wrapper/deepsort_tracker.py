@@ -177,7 +177,7 @@ class DeepSort(object):
 
     def __update(self, bboxes_xywh: torch.Tensor, confidences: torch.Tensor, ori_img: np.ndarray) -> List[np.ndarray]:
         self.height, self.width = ori_img.shape[:2]
-        # generate detections
+        # generate features
         im_crops = []
         features = np.array([])
         for bbox_xywh in bboxes_xywh:
@@ -190,19 +190,24 @@ class DeepSort(object):
             im_crops.append(im)
         if im_crops:
             features = self.__extractor(im_crops)
-        if isinstance(bboxes_xywh, np.ndarray):
-            bboxes_tlwh = bboxes_xywh.copy()
-        elif isinstance(bboxes_xywh, torch.Tensor):
-            bboxes_tlwh = bboxes_xywh.clone()
-        bboxes_tlwh[:, 0] = bboxes_xywh[:, 0] - bboxes_xywh[:, 2] / 2.
-        bboxes_tlwh[:, 1] = bboxes_xywh[:, 1] - bboxes_xywh[:, 3] / 2.
-        detections = [Detection(bboxes_tlwh[i], conf, features[i]) for i,conf in enumerate(confidences) if conf>self.__min_confidence]
+        
+        if (len(bboxes_xywh) > 0):
+            # xywh_to_tlwh
+            if isinstance(bboxes_xywh, np.ndarray):
+                bboxes_tlwh = bboxes_xywh.copy()
+            elif isinstance(bboxes_xywh, torch.Tensor):
+                bboxes_tlwh = bboxes_xywh.clone()
+            bboxes_tlwh[:, 0] = bboxes_xywh[:, 0] - bboxes_xywh[:, 2] / 2.
+            bboxes_tlwh[:, 1] = bboxes_xywh[:, 1] - bboxes_xywh[:, 3] / 2.
+            detections = [Detection(bboxes_tlwh[i], conf, features[i]) for i,conf in enumerate(confidences) if conf>self.__min_confidence]
 
-        # run on non-maximum supression
-        boxes = np.array([d.tlwh for d in detections])
-        scores = np.array([d.confidence for d in detections])
-        indices = non_max_suppression(boxes, self.__nms_max_overlap, scores)
-        detections = [detections[i] for i in indices]
+            # run on non-maximum supression
+            boxes = np.array([d.tlwh for d in detections])
+            scores = np.array([d.confidence for d in detections])
+            indices = non_max_suppression(boxes, self.__nms_max_overlap, scores)
+            detections = [detections[i] for i in indices]
+        else:
+            detections = []
 
         # update tracker
         self.__tracker.predict()
