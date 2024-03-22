@@ -87,25 +87,19 @@ class TaskInfo:
             return False, error_info
         return True, 'OK'
     
-    def start(self):
-        try:
-            self.image_harmony_client.connect_image_loader(self.loader_args_hash)
-            builder = DeepSort.DeepSortBuilder()
-            builder.device_str = self.device
-            builder.weights = f'{self.weights_folder}/{self.weight}'
-            builder.max_tracking_length = self.max_tracking_length
-            self.tracker = builder.build()
-            self.target_detection_client.filter.clear()
-            target_label_id = self.target_detection_client.query_label_id(self.target_label)
-            self.target_detection_client.filter.add(target_label_id)
-            self.stop_event.clear()  # 确保开始时事件是清除状态
-            self.track_thread = threading.Thread(target=self.track_by_image_id)
-            self.track_thread.start()
-        except Exception as e:
-            error_info = traceback.format_exc()
-            print(error_info)
-            return False, error_info
-        return True, 'OK'
+    def start(self) -> None:
+        self.image_harmony_client.connect_image_loader(self.loader_args_hash)
+        builder = DeepSort.DeepSortBuilder()
+        builder.device_str = self.device
+        builder.weights = f'{self.weights_folder}/{self.weight}'
+        builder.max_tracking_length = self.max_tracking_length
+        self.tracker = builder.build()
+        self.target_detection_client.filter.clear()
+        target_label_id = self.target_detection_client.query_label_id(self.target_label)
+        self.target_detection_client.filter.add(target_label_id)
+        self.stop_event.clear()  # 确保开始时事件是清除状态
+        self.track_thread = threading.Thread(target=self.track_by_image_id)
+        self.track_thread.start()
     
     def track_by_image_id(self):
         assert self.tracker, 'tracker is not set\n'
@@ -146,7 +140,7 @@ class TaskInfo:
             # result = self.tracker.get_result_by_uid(image_id)
             # print(result)
     
-    def stop(self):
+    def stop(self) -> None:
         self.stop_event.set()  # 设置事件，通知线程停止
         if self.track_thread:
             self.track_thread.join()  # 等待线程结束
