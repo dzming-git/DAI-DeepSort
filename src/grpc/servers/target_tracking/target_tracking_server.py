@@ -28,12 +28,18 @@ class TargetTrackingServer(target_tracking_pb2_grpc.CommunicateServicer):
             timeout = 1
             start_time = time.time()
 
+            # 等待添加完成
+            while not tracker.check_image_id_exist(image_id):
+                # 检查是否超过了超时时间
+                if time.time() - start_time > timeout:
+                    raise TimeoutError("添加图片超时")
+                time.sleep(0.01)
+            
             # 等待检测完成
             while tracker.get_status(image_id) != 0:
                 # 检查是否超过了超时时间
                 if time.time() - start_time > timeout:
-                    raise TimeoutError("等待超时")
-                
+                    raise TimeoutError("检测图片超时")
                 time.sleep(0.01)
             
             results_dict = tracker.get_result_by_image_id(image_id)
